@@ -4,12 +4,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const sourceLang = document.getElementById('sourceLang');
     const targetLang = document.getElementById('targetLang');
     const translateButton = document.getElementById('translateButton');
-    const translatedTextDiv = document.getElementById('translatedText');
-    const errorMessageDiv = document.getElementById('errorMessage');
+    const translatedTextDiv = document = document.getElementById('translatedText');
+    const errorMessageDiv = document = document.getElementById('errorMessage');
 
     // Základní API pro většinu jazyků
     const LINGVA_API_BASE_URL = 'https://lingva.ml/api/v1/';
-    // API pro čínštinu (neoficiální Google Translate, který může vracet pinyin)
+    // API pro čínštinu (neoficiální Google Translate, které může vracet pinyin)
+    // Tato URL a její odpověď nejsou oficiálně zdokumentované a mohou se měnit.
     const GOOGLE_TRANSLATE_API_URL = 'https://translate.googleapis.com/translate_a/single';
 
     function displayError(message) {
@@ -44,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             if (selectedTargetLang === 'zh') {
-                // *** Speciální logika pro čínštinu ***
+                // *** Speciální logika pro čínštinu s Google Translate API ***
                 console.log('Překládám do čínštiny, používám Google Translate API pro pinyin.');
                 const googleApiUrl = `${GOOGLE_TRANSLATE_API_URL}?client=gtx&sl=${selectedSourceLang}&tl=${selectedTargetLang}&dt=at&dt=bd&dt=ex&dt=ld&dt=md&dt=qca&dt=rw&dt=rm&dt=ss&dt=t&ie=UTF-8&oe=UTF-8&otf=1&ssel=0&tsel=0&kc=7&hl=en&q=${encodeURIComponent(textToTranslate)}`;
                 
@@ -59,26 +60,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 const googleData = await googleResponse.json();
                 console.log('Odpověď z Google Translate API:', googleData);
 
+                // Získání hlavního překladu
                 if (googleData && googleData[0] && googleData[0][0] && typeof googleData[0][0][0] === 'string') {
-                    translation = googleData[0][0][0]; // Hlavní překlad
+                    translation = googleData[0][0][0]; 
                 } else {
                     console.warn('Google Translate API vrátilo neočekávanou strukturu dat pro překlad do čínštiny:', googleData);
                     displayError('Překlad do čínštiny se nezdařil. Neočekávaná odpověď z překladače.');
                     return;
                 }
 
-                // Zkusíme najít pinyin v odpovědi (struktura je složitá, může se lišit)
-                // Pinyin je často v googleData[0][0][3] nebo podobně, ale není zaručeno
-                if (googleData[0] && Array.isArray(googleData[0])) {
-                    // Procházíme segmenty překladu
-                    googleData[0].forEach(segment => {
-                        if (segment[3] && typeof segment[3] === 'string') {
-                            pinyinText += segment[3] + ' '; // Přidáváme pinyin s mezerou
+                // *** Vylepšená logika pro extrakci pinyinu ***
+                // Zkusíme nejprve hlavní pinyin, který je často v googleData[1][0][0]
+                if (googleData[1] && Array.isArray(googleData[1]) && googleData[1][0] && googleData[1][0][0]) {
+                    pinyinText = googleData[1][0][0]; 
+                    console.log('Zjištěný Pinyin z Google Translate API (hlavní část):', pinyinText);
+                } else {
+                    // Fallback: Projdeme všechny segmenty překladu a posbíráme pinyin, pokud je k dispozici
+                    let tempPinyinParts = [];
+                    if (googleData[0] && Array.isArray(googleData[0])) {
+                        googleData[0].forEach(segment => {
+                            if (segment[3] && typeof segment[3] === 'string') {
+                                tempPinyinParts.push(segment[3]);
+                            }
+                        });
+                        if (tempPinyinParts.length > 0) {
+                            pinyinText = tempPinyinParts.join(' ');
+                            console.log('Zjištěný Pinyin z Google Translate API (ze segmentů):', pinyinText);
                         }
-                    });
-                    pinyinText = pinyinText.trim(); // Odstraníme trailing mezeru
-                    console.log('Zjištěný Pinyin z Google Translate API:', pinyinText);
+                    }
                 }
+                
+                // Zobrazení chybové zprávy, pokud se pinyin nenašel, ale překlad ano
                 if (!pinyinText && translation) {
                     errorMessageDiv.textContent = 'Pro čínštinu se pinyin nepodařilo získat (překlad funguje).';
                 } else {
