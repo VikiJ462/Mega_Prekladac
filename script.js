@@ -1,7 +1,4 @@
 // script.js
-// Zde už nepotřebujeme let pinyinPro = null; ani dynamický import.
-// Spoleháme se na to, že pinyin-pro.min.js definuje window.pinyin.
-
 document.addEventListener('DOMContentLoaded', () => {
     const inputText = document.getElementById('inputText');
     const sourceLang = document.getElementById('sourceLang');
@@ -10,7 +7,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const translatedTextDiv = document.getElementById('translatedText');
     const errorMessageDiv = document.getElementById('errorMessage');
 
+    // Základní API pro většinu jazyků
     const LINGVA_API_BASE_URL = 'https://lingva.ml/api/v1/';
+    // API pro čínštinu (neoficiální Google Translate, který může vracet pinyin)
+    const GOOGLE_TRANSLATE_API_URL = 'https://translate.googleapis.com/translate_a/single';
 
     function displayError(message) {
         errorMessageDiv.textContent = message;
@@ -20,23 +20,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function clearMessages() {
         errorMessageDiv.textContent = '';
         translatedTextDiv.innerHTML = 'Překládám...';
-    }
-
-    // Odstranili jsme kód pro dynamický import, protože na webovém serveru by měl fungovat přímo tag <script>.
-    // Funkce getPinyin teď pouze kontroluje window.pinyin.
-    function getPinyin(chineseText) {
-        // Zde je klíčová kontrola - čekáme na window.pinyin
-        if (typeof window.pinyin === 'function') {
-            console.log('Používám window.pinyin pro generování pinyinu.');
-            // 'pattern: "pinyin"' zajistí, že se vrátí skutečný pinyin, ne původní znaky
-            // 'splitter: " "' pro mezery mezi slabikami
-            // 'toneType: "symbol"' pro tóny (nǐ hǎo)
-            return window.pinyin(chineseText, { toneType: 'symbol', pattern: 'pinyin', splitter: ' ' });
-        } else {
-            console.error('Kritická chyba: Funkce window.pinyin není dostupná i po načtení.');
-            // Tato zpráva by se neměla objevit na správně nasazeném serveru
-            return '';
-        }
     }
 
     translateButton.addEventListener('click', async () => {
@@ -56,39 +39,75 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        let translation = '';
+        let pinyinText = '';
+
         try {
-            const apiUrl = `${LINGVA_API_BASE_URL}${selectedSourceLang}/${selectedTargetLang}/${encodeURIComponent(textToTranslate)}`;
-            console.log('Volám Lingva API:', apiUrl);
+            if (selectedTargetLang === 'zh') {
+                // *** Speciální logika pro čínštinu ***
+                console.log('Překládám do čínštiny, používám Google Translate API pro pinyin.');
+                const googleApiUrl = `${GOOGLE_TRANSLATE_API_URL}?client=gtx&sl=${selectedSourceLang}&tl=${selectedTargetLang}&dt=at&dt=bd&dt=ex&dt=ld&dt=md&dt=qca&dt=rw&dt=rm&dt=ss&dt=t&ie=UTF-8&oe=UTF-8&otf=1&ssel=0&tsel=0&kc=7&hl=en&q=${encodeURIComponent(textToTranslate)}`;
+                
+                const googleResponse = await fetch(googleApiUrl);
+                if (!googleResponse.ok) {
+                    const errorDetail = await googleResponse.text().catch(() => 'Neznámý detail chyby');
+                    console.error(`Chyba při volání Google Translate API (${googleResponse.status} ${googleResponse.statusText}):`, errorDetail);
+                    displayError(`Nepodařilo se přeložit do čínštiny. Zkuste prosím Lingva API (nebo jiné jazyky).`);
+                    return;
+                }
 
-            const response = await fetch(apiUrl);
+                const googleData = await googleResponse.json();
+                console.log('Odpověď z Google Translate API:', googleData);
 
-            if (!response.ok) {
-                const errorDetail = await response.text().catch(() => 'Neznámý detail chyby');
-                console.error(`Chyba při volání Lingva API (${response.status} ${response.statusText}):`, errorDetail);
-                displayError(`Nepodařilo se dokončit překlad. Zkuste to prosím znovu.`);
-                return;
-            }
-
-            const data = await response.json();
-            console.log('Odpověď z Lingva API:', data);
-
-            let translation = '';
-            if (data && typeof data.translation === 'string') {
-                translation = data.translation;
-            } else {
-                console.warn('Lingva API vrátilo neočekávanou strukturu dat pro překlad, nebo prázdný překlad:', data);
-                displayError('Překlad se nezdařil. Neočekávaná odpověď z překladače.');
-                return;
-            }
-
-            let pinyinText = '';
-            // Pinyin získáme pouze pokud je cílovým jazykem čínština A pokud existuje přeložený text
-            if (selectedTargetLang === 'zh' && translation) {
-                pinyinText = getPinyin(translation); // Voláme naši pomocnou funkci
-                if (!pinyinText) { // Pokud getPinyin vrátí prázdný řetězec
-                    errorMessageDiv.textContent = 'Pinyin není k dispozici (načítání se nezdařilo).';
+                if (googleData && googleData[0] && googleData[0][0] && typeof googleData[0][0][0] === 'string') {
+                    translation = googleData[0][0][0]; // Hlavní překlad
                 } else {
-                    errorMessageDiv.textContent = ''; // Vymažeme zprávu, pokud pinyin funguje
+                    console.warn('Google Translate API vrátilo neočekávanou strukturu dat pro překlad do čínštiny:', googleData);
+                    displayError('Překlad do čínštiny se nezdařil. Neočekávaná odpověď z překladače.');
+                    return;
+                }
+
+                // Zkusíme najít pinyin v odpovědi (struktura je složitá, může se lišit)
+                // Pinyin je často v googleData[0][0][3] nebo podobně, ale není zaručeno
+                if (googleData[0] && Array.isArray(googleData[0])) {
+                    // Procházíme segmenty překladu
+                    googleData[0].forEach(segment => {
+                        if (segment[3] && typeof segment[3] === 'string') {
+                            pinyinText += segment[3] + ' '; // Přidáváme pinyin s mezerou
+                        }
+                    });
+                    pinyinText = pinyinText.trim(); // Odstraníme trailing mezeru
+                    console.log('Zjištěný Pinyin z Google Translate API:', pinyinText);
+                }
+                if (!pinyinText && translation) {
+                    errorMessageDiv.textContent = 'Pro čínštinu se pinyin nepodařilo získat (překlad funguje).';
+                } else {
+                     errorMessageDiv.textContent = ''; // Vymažeme chybu, pokud se pinyin najde
+                }
+
+            } else {
+                // *** Standardní logika pro ostatní jazyky (Lingva API) ***
+                const lingvaApiUrl = `${LINGVA_API_BASE_URL}${selectedSourceLang}/${selectedTargetLang}/${encodeURIComponent(textToTranslate)}`;
+                console.log('Volám Lingva API:', lingvaApiUrl);
+
+                const lingvaResponse = await fetch(lingvaApiUrl);
+
+                if (!lingvaResponse.ok) {
+                    const errorDetail = await lingvaResponse.text().catch(() => 'Neznámý detail chyby');
+                    console.error(`Chyba při volání Lingva API (${lingvaResponse.status} ${lingvaResponse.statusText}):`, errorDetail);
+                    displayError(`Nepodařilo se dokončit překlad. Zkuste to prosím znovu.`);
+                    return;
+                }
+
+                const lingvaData = await lingvaResponse.json();
+                console.log('Odpověď z Lingva API:', lingvaData);
+
+                if (lingvaData && typeof lingvaData.translation === 'string') {
+                    translation = lingvaData.translation;
+                } else {
+                    console.warn('Lingva API vrátilo neočekávanou strukturu dat pro překlad:', lingvaData);
+                    displayError('Překlad se nezdařil. Neočekávaná odpověď z překladače.');
+                    return;
                 }
             }
 
