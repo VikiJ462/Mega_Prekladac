@@ -4,13 +4,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const sourceLang = document.getElementById('sourceLang');
     const targetLang = document.getElementById('targetLang');
     const translateButton = document.getElementById('translateButton');
-    const translatedTextDiv = document = document.getElementById('translatedText');
-    const errorMessageDiv = document = document.getElementById('errorMessage');
+    const translatedTextDiv = document.getElementById('translatedText');
+    const errorMessageDiv = document.getElementById('errorMessage');
 
-    // Základní API pro většinu jazyků
     const LINGVA_API_BASE_URL = 'https://lingva.ml/api/v1/';
-    // API pro čínštinu (neoficiální Google Translate, které může vracet pinyin)
-    // Tato URL a její odpověď nejsou oficiálně zdokumentované a mohou se měnit.
     const GOOGLE_TRANSLATE_API_URL = 'https://translate.googleapis.com/translate_a/single';
 
     function displayError(message) {
@@ -45,7 +42,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             if (selectedTargetLang === 'zh') {
-                // *** Speciální logika pro čínštinu s Google Translate API ***
                 console.log('Překládám do čínštiny, používám Google Translate API pro pinyin.');
                 const googleApiUrl = `${GOOGLE_TRANSLATE_API_URL}?client=gtx&sl=${selectedSourceLang}&tl=${selectedTargetLang}&dt=at&dt=bd&dt=ex&dt=ld&dt=md&dt=qca&dt=rw&dt=rm&dt=ss&dt=t&ie=UTF-8&oe=UTF-8&otf=1&ssel=0&tsel=0&kc=7&hl=en&q=${encodeURIComponent(textToTranslate)}`;
                 
@@ -60,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const googleData = await googleResponse.json();
                 console.log('Odpověď z Google Translate API:', googleData);
 
-                // Získání hlavního překladu
+                // Get main translation
                 if (googleData && googleData[0] && googleData[0][0] && typeof googleData[0][0][0] === 'string') {
                     translation = googleData[0][0][0]; 
                 } else {
@@ -69,36 +65,41 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                // *** Vylepšená logika pro extrakci pinyinu ***
-                // Zkusíme nejprve hlavní pinyin, který je často v googleData[1][0][0]
-                if (googleData[1] && Array.isArray(googleData[1]) && googleData[1][0] && googleData[1][0][0]) {
-                    pinyinText = googleData[1][0][0]; 
-                    console.log('Zjištěný Pinyin z Google Translate API (hlavní část):', pinyinText);
-                } else {
-                    // Fallback: Projdeme všechny segmenty překladu a posbíráme pinyin, pokud je k dispozici
+                // *** REFINED PINYIN EXTRACTION LOGIC ***
+                // The structure can vary, so we'll try a few common places
+                let foundPinyin = false;
+
+                // Attempt 1: Check the common index for full pinyin for the entire translation
+                if (googleData[1] && Array.isArray(googleData[1]) && googleData[1][0] && typeof googleData[1][0][0] === 'string') {
+                    pinyinText = googleData[1][0][0];
+                    foundPinyin = true;
+                    console.log('Zjištěný Pinyin z Google Translate API (hlavní index):', pinyinText);
+                }
+
+                // Attempt 2: Iterate through segments if the first attempt fails
+                if (!foundPinyin && googleData[0] && Array.isArray(googleData[0])) {
                     let tempPinyinParts = [];
-                    if (googleData[0] && Array.isArray(googleData[0])) {
-                        googleData[0].forEach(segment => {
-                            if (segment[3] && typeof segment[3] === 'string') {
-                                tempPinyinParts.push(segment[3]);
-                            }
-                        });
-                        if (tempPinyinParts.length > 0) {
-                            pinyinText = tempPinyinParts.join(' ');
-                            console.log('Zjištěný Pinyin z Google Translate API (ze segmentů):', pinyinText);
+                    googleData[0].forEach(segment => {
+                        // Segment[3] often contains the Pinyin for that specific translated part
+                        if (segment[3] && typeof segment[3] === 'string') {
+                            tempPinyinParts.push(segment[3]);
                         }
+                    });
+                    if (tempPinyinParts.length > 0) {
+                        pinyinText = tempPinyinParts.join(' ');
+                        foundPinyin = true;
+                        console.log('Zjištěný Pinyin z Google Translate API (ze segmentů):', pinyinText);
                     }
                 }
                 
-                // Zobrazení chybové zprávy, pokud se pinyin nenašel, ale překlad ano
-                if (!pinyinText && translation) {
+                if (!foundPinyin && translation) { // Only show error if pinyin was expected but not found
                     errorMessageDiv.textContent = 'Pro čínštinu se pinyin nepodařilo získat (překlad funguje).';
                 } else {
-                     errorMessageDiv.textContent = ''; // Vymažeme chybu, pokud se pinyin najde
+                     errorMessageDiv.textContent = ''; // Clear error if pinyin is found or not expected
                 }
 
             } else {
-                // *** Standardní logika pro ostatní jazyky (Lingva API) ***
+                // *** Standard logic for other languages (Lingva API) ***
                 const lingvaApiUrl = `${LINGVA_API_BASE_URL}${selectedSourceLang}/${selectedTargetLang}/${encodeURIComponent(textToTranslate)}`;
                 console.log('Volám Lingva API:', lingvaApiUrl);
 
@@ -123,7 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // Zobrazení překladu a pinyinu
+            // Display translation and pinyin
             let outputHtml = `<div>${translation}</div>`;
             if (pinyinText) {
                 outputHtml += `<div class="pinyin-text">${pinyinText}</div>`;
