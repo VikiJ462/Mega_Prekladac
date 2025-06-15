@@ -1,7 +1,8 @@
 // script.js
-let pinyinPro = null; // Globální proměnná pro uložení pinyin funkce
+// Zde už nepotřebujeme let pinyinPro = null; ani dynamický import.
+// Spoleháme se na to, že pinyin-pro.min.js definuje window.pinyin.
 
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener('DOMContentLoaded', () => {
     const inputText = document.getElementById('inputText');
     const sourceLang = document.getElementById('sourceLang');
     const targetLang = document.getElementById('targetLang');
@@ -21,33 +22,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         translatedTextDiv.innerHTML = 'Překládám...';
     }
 
-    // --- Dynamické načtení pinyin-pro knihovny ---
-    console.log("Pokouším se dynamicky načíst pinyin-pro.min.js...");
-    try {
-        // Použijeme 'import()' pro dynamické načtení modulu.
-        // Tím zajistíme, že kód knihovny se spustí.
-        // Protože pinyin-pro.min.js je starší UMD modul, jeho export se objeví na window.
-        // Někdy je potřeba přímo importovat z "pinyin-pro", pokud je to ES modul.
-        // Pro tuto verzi by se mělo objevit na window.
-        await import('./pinyin-pro.min.js'); 
-        
-        // Zde zkontrolujeme, zda se pinyin funkce skutečně objevila na window
+    // Odstranili jsme kód pro dynamický import, protože na webovém serveru by měl fungovat přímo tag <script>.
+    // Funkce getPinyin teď pouze kontroluje window.pinyin.
+    function getPinyin(chineseText) {
+        // Zde je klíčová kontrola - čekáme na window.pinyin
         if (typeof window.pinyin === 'function') {
-            pinyinPro = window.pinyin;
-            console.log("Knihovna pinyin-pro úspěšně načtena a funkce 'pinyin' je dostupná.");
-            errorMessageDiv.textContent = ''; // Smažeme případnou chybu, pokud se načte později
+            console.log('Používám window.pinyin pro generování pinyinu.');
+            // 'pattern: "pinyin"' zajistí, že se vrátí skutečný pinyin, ne původní znaky
+            // 'splitter: " "' pro mezery mezi slabikami
+            // 'toneType: "symbol"' pro tóny (nǐ hǎo)
+            return window.pinyin(chineseText, { toneType: 'symbol', pattern: 'pinyin', splitter: ' ' });
         } else {
-            console.error("Knihovna pinyin-pro se načetla, ale funkce 'pinyin' nebyla nalezena na window.");
-            errorMessageDiv.textContent = 'Chyba: Pinyin generátor se nenačetl správně (funkce nenalezena).';
+            console.error('Kritická chyba: Funkce window.pinyin není dostupná i po načtení.');
+            // Tato zpráva by se neměla objevit na správně nasazeném serveru
+            return '';
         }
-    } catch (error) {
-        console.error('Chyba při dynamickém načítání pinyin-pro.min.js:', error);
-        errorMessageDiv.textContent = 'Chyba: Pinyin generátor není dostupný (problém s načítáním souboru).';
     }
-    // --- Konec dynamického načítání pinyin-pro knihovny ---
 
-
-    async function performTranslation() {
+    translateButton.addEventListener('click', async () => {
         const textToTranslate = inputText.value.trim();
         const selectedSourceLang = sourceLang.value;
         const selectedTargetLang = targetLang.value;
@@ -91,18 +83,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             let pinyinText = '';
             // Pinyin získáme pouze pokud je cílovým jazykem čínština A pokud existuje přeložený text
-            // A pokud je pinyinPro funkce dostupná
             if (selectedTargetLang === 'zh' && translation) {
-                if (typeof pinyinPro === 'function') { // Používáme naši uloženou referenci
-                    pinyinText = pinyinPro(translation, {
-                        toneType: 'symbol',
-                        pattern: 'pinyin',
-                        splitter: ' '
-                    });
-                    console.log('Zjištěný Pinyin z pinyin-pro:', pinyinText);
+                pinyinText = getPinyin(translation); // Voláme naši pomocnou funkci
+                if (!pinyinText) { // Pokud getPinyin vrátí prázdný řetězec
+                    errorMessageDiv.textContent = 'Pinyin není k dispozici (načítání se nezdařilo).';
                 } else {
-                    console.warn('Pinyin funkce není dostupná pro generování pinyinu, i když je cílový jazyk čínština.');
-                    errorMessageDiv.textContent = 'Pinyin není k dispozici (načítání se nezdařilo).'; // Zobrazíme zprávu, pokud funkce chybí
+                    errorMessageDiv.textContent = ''; // Vymažeme zprávu, pokud pinyin funguje
                 }
             }
 
@@ -117,7 +103,5 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.error('Došlo k chybě při překladu nebo generování pinyinu:', error);
             displayError('Došlo k chybě při komunikaci s překladačem nebo generování pinyinu. Zkuste to prosím znovu.');
         }
-    }
-
-    translateButton.addEventListener('click', performTranslation);
+    });
 });
