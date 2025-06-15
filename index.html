@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mega Překladač (používá Lingva API)</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Mega Překladač (používá Lingva API)</h1>
+
+        <div class="error-message" id="errorMessage"></div>
+
+        <label for="inputText">Zadejte text k překladu:</label>
+        <textarea id="inputText" placeholder="Zadejte text..."></textarea>
+
+        <label for="sourceLang">Z jazyka:</label>
+        <select id="sourceLang">
+            <option value="auto">Automaticky detekovat (auto)</option>
+            <option value="cs">Čeština (cs)</option>
+            <option value="en">Angličtina (en)</option>
+            <option value="es">Španělština (es)</option>
+            <option value="fr">Francouzština (fr)</option>
+            <option value="de">Němčina (de)</option>
+            <option value="it">Italština (it)</option>
+            <option value="sk">Slovenština (sk)</option>
+            <option value="pl">Polština (pl)</option>
+            <option value="ru">Ruština (ru)</option>
+            <option value="zh">Čínština (zh)</option>
+            <option value="ja">Japonština (ja)</option>
+            <option value="ko">Korejština (ko)</option>
+        </select>
+
+        <label for="targetLang">Do jazyka:</label>
+        <select id="targetLang">
+            <option value="en">Angličtina (en)</option>
+            <option value="cs">Čeština (cs)</option>
+            <option value="es">Španělština (es)</option>
+            <option value="fr">Francouzština (fr)</option>
+            <option value="de">Němčina (de)</option>
+            <option value="it">Italština (it)</option>
+            <option value="sk">Slovenština (sk)</option>
+            <option value="pl">Polština (pl)</option>
+            <option value="ru">Ruština (ru)</option>
+            <option value="zh">Čínština (zh)</option>
+            <option value="ja">Japonština (ja)</option>
+            <option value="ko">Korejština (ko)</option>
+        </select>
+
+        <button id="translateButton">Přeložit</button>
+
+        <label>Přeložený text:</label>
+        <div id="translatedText" class="result-box">
+            Zde se zobrazí přeložený text.
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
